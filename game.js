@@ -27,3 +27,115 @@ function finish(){S.part++;localStorage.setItem("vn021",JSON.stringify(S));menu(
 function weekend(){if(S.year_week>=48)return showCG("graduation_ending",()=>talk([{t:"卒業式の日を迎えた。Ver0.2.1終了。",bg:"カレンダー"}],()=>show("title")));S.year_week++;S.part=0;localStorage.setItem("vn021",JSON.stringify(S));talk([{t:`――${W().month}月 第${W().week}週へ進みます。`,bg:"カレンダー"}],menu)}
 function status(){let ids=["misaki","yuina","hina","chisa","rin","kaori"].concat(S.chars.mirei.visible?["mirei"]:[]);$("stats").innerHTML=ids.map(id=>{let c=S.chars[id];return `<div class=row><b>${c.name}</b>　好感度${c.affection} / Body${Math.round(c.body_points)} / Lv${c.body_level}</div>`}).join("");$("modal").classList.remove("hidden")}
 function closeStatus(){$("modal").classList.add("hidden")}
+
+
+function openDebug(){
+  if(!S){ alert("ゲーム開始後に使用できます"); return; }
+  const sel=$("debugChar");
+  sel.innerHTML="";
+  Object.entries(S.chars).forEach(([id,c])=>{
+    const o=document.createElement("option");
+    o.value=id;
+    o.textContent=c.name;
+    sel.appendChild(o);
+  });
+  $("debugModal").classList.remove("hidden");
+  refreshDebugInfo();
+}
+function closeDebug(){$("debugModal").classList.add("hidden")}
+function debugSelected(){return $("debugChar").value}
+function refreshDebugInfo(){
+  if(!S)return;
+  const id=debugSelected()||"misaki";
+  const c=S.chars[id];
+  const w=W();
+  $("debugInfo").textContent=
+`YearWeek: ${S.year_week}/48
+Date: ${w.month}月 第${w.week}週
+Part: ${S.part+1}/${w.parts.length}
+Character: ${c.name}
+Affection: ${c.affection}
+BodyPoints: ${Math.round(c.body_points)}
+BodyLevel: ${c.body_level}
+FoodHabit: ${c.food_habit}
+MireiVisible: ${S.chars.mirei.visible ? "true":"false"}`;
+}
+function debugNextPart(){
+  S.part++;
+  if(S.part>=W().parts.length){
+    if(S.year_week<48){S.year_week++;S.part=0;}
+    else S.part=W().parts.length-1;
+  }
+  localStorage.setItem("vn021",JSON.stringify(S));
+  ui();
+  refreshDebugInfo();
+}
+function debugNextWeek(){
+  if(S.year_week<48)S.year_week++;
+  S.part=0;
+  localStorage.setItem("vn021",JSON.stringify(S));
+  ui();
+  refreshDebugInfo();
+}
+function debugPrevWeek(){
+  if(S.year_week>1)S.year_week--;
+  S.part=0;
+  localStorage.setItem("vn021",JSON.stringify(S));
+  ui();
+  refreshDebugInfo();
+}
+function debugJumpWeek(){
+  const v=Number(prompt("1〜48の週番号を入力",S.year_week));
+  if(!Number.isInteger(v)||v<1||v>48)return;
+  S.year_week=v;
+  S.part=0;
+  localStorage.setItem("vn021",JSON.stringify(S));
+  ui();
+  refreshDebugInfo();
+}
+function debugAffection(delta){
+  const c=S.chars[debugSelected()];
+  c.affection=Math.max(0,Math.min(100,c.affection+delta));
+  refreshDebugInfo();
+}
+function debugFood(delta){
+  const c=S.chars[debugSelected()];
+  c.food_habit=Math.max(0,Math.min(100,c.food_habit+delta));
+  refreshDebugInfo();
+}
+function debugSetLevel(lv){
+  const c=S.chars[debugSelected()];
+  const pts={1:0,2:20,3:40,4:60,5:80}[lv];
+  c.body_points=pts;
+  c.body_level=lv;
+  c.max_body_level=Math.max(c.max_body_level,lv);
+  refreshDebugInfo();
+}
+function debugUnlockMirei(){
+  S.chars.mirei.visible=true;
+  alert("美玲を解放しました");
+  refreshDebugInfo();
+}
+function debugTestSprite(){
+  const id=debugSelected();
+  char(id,"normal");
+  closeDebug();
+}
+function debugTestCG(){
+  const id=$("debugCgId").value.trim();
+  if(!id){alert("event_idを入力してください");return;}
+  closeDebug();
+  showCG(id,()=>{});
+}
+function debugSave(){
+  localStorage.setItem("vn021",JSON.stringify(S));
+  alert("現在状態を保存しました");
+}
+function debugResetSave(){
+  if(!confirm("セーブデータを初期化しますか？"))return;
+  localStorage.removeItem("vn021");
+  alert("セーブを削除しました");
+}
+document.addEventListener("change",e=>{
+  if(e.target && e.target.id==="debugChar")refreshDebugInfo();
+});

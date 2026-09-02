@@ -1,7 +1,64 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>料理部VN Ver0.2.1</title><link rel="stylesheet" href="style.css"></head><body>
-<div id="title" class="screen"><div class="card"><small>BROWSER PROTOTYPE</small><h1>料理部ビジュアルノベル</h1><p>Ver0.2.1 / 画像自動読込対応</p><button onclick="newGame()">ゲーム開始</button><button onclick="continueGame()">続きから</button></div></div>
-<div id="game" class="screen hidden"><header><div><b id="date"></b><div id="part"></div></div><div><button onclick="status()">ステータス</button><button onclick="save()">セーブ</button></div></header>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>料理部VN Ver0.2.2</title><link rel="stylesheet" href="style.css"></head><body>
+<div id="title" class="screen"><div class="card"><small>BROWSER PROTOTYPE</small><h1>料理部ビジュアルノベル</h1><p>Ver0.2.2 / DEBUG PANEL</p><button onclick="newGame()">ゲーム開始</button><button onclick="continueGame()">続きから</button></div></div>
+<div id="game" class="screen hidden"><header><div><b id="date"></b><div id="part"></div></div><div><button onclick="status()">ステータス</button><button onclick="save()">セーブ</button><button onclick="openDebug()">DEBUG</button></div></header>
 <main id="stage"><img id="bgimg" class="bgimg hidden"><span id="bg">学校</span><img id="sprite" class="sprite hidden"><div id="placeholder" class="placeholder hidden"><div id="avatar"></div><b id="cname"></b><small id="cstate"></small></div><img id="cgimg" class="cgimg hidden"></main>
 <div id="choices"></div><section id="dialog" class="hidden"><b id="speaker"></b><p id="text"></p><button onclick="next()">次へ ▶</button></section></div>
 <div id="modal" class="modal hidden"><div class="card"><button onclick="closeStatus()">閉じる</button><h2>ステータス</h2><div id="stats"></div></div></div>
+
+<div id="debugModal" class="modal hidden">
+  <div class="card debug-card">
+    <div class="debug-header">
+      <h2>DEBUG PANEL</h2>
+      <button onclick="closeDebug()">閉じる</button>
+    </div>
+
+    <div class="debug-section">
+      <h3>時間操作</h3>
+      <div class="debug-grid">
+        <button onclick="debugNextPart()">次の行動へ</button>
+        <button onclick="debugNextWeek()">次の週へ</button>
+        <button onclick="debugPrevWeek()">前の週へ</button>
+        <button onclick="debugJumpWeek()">週番号指定</button>
+      </div>
+    </div>
+
+    <div class="debug-section">
+      <h3>キャラクター</h3>
+      <select id="debugChar"></select>
+      <div class="debug-grid">
+        <button onclick="debugAffection(10)">好感度 +10</button>
+        <button onclick="debugAffection(-10)">好感度 -10</button>
+        <button onclick="debugFood(10)">食習慣 +10</button>
+        <button onclick="debugFood(-10)">食習慣 -10</button>
+      </div>
+      <div class="debug-grid five">
+        <button onclick="debugSetLevel(1)">Lv1</button>
+        <button onclick="debugSetLevel(2)">Lv2</button>
+        <button onclick="debugSetLevel(3)">Lv3</button>
+        <button onclick="debugSetLevel(4)">Lv4</button>
+        <button onclick="debugSetLevel(5)">Lv5</button>
+      </div>
+    </div>
+
+    <div class="debug-section">
+      <h3>画像確認</h3>
+      <div class="debug-grid">
+        <button onclick="debugUnlockMirei()">美玲を解放</button>
+        <button onclick="debugTestSprite()">立ち絵テスト</button>
+      </div>
+      <input id="debugCgId" placeholder="CG event_id 例: rin_bodychange_03">
+      <button class="wide" onclick="debugTestCG()">CGを表示</button>
+    </div>
+
+    <div class="debug-section">
+      <h3>データ</h3>
+      <div class="debug-grid">
+        <button onclick="debugSave()">強制セーブ</button>
+        <button onclick="debugResetSave()">セーブ初期化</button>
+      </div>
+    </div>
+
+    <pre id="debugInfo"></pre>
+  </div>
+</div>
 <script src="data.js"></script><script src="game.js"></script></body></html>
