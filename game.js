@@ -366,7 +366,38 @@ function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof 
 
 function ensureDiet(c){if(typeof c.diet_mode!=="boolean")c.diet_mode=false;if(typeof c.diet_progress!=="number")c.diet_progress=0}
 function applyBodyChoice(id,e){let c=S.chars[id];ensureDiet(c);c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)))}
-function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let finishEvent=()=>finishEventSafely(cb);let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent)}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);else talk(ev.lines,after)}
+function runBodyChange(id,cb){
+  let ev=BODYCHANGE_SCRIPTS_V031[id];
+  if(!ev)return cb&&cb();
+  let c=S.chars[ev.char];
+  ensureDiet(c);
+  let finishEvent=()=>finishEventSafely(cb);
+
+  let after=()=>{
+    const hasChoices=ev.interactive!==false && Array.isArray(ev.choices) && ev.choices.length>0;
+    if(!hasChoices){
+      applyBodyChoice(ev.char,ev.fixed_effects||{});
+      if(ev.post?.diet_mode)c.diet_mode=true;
+      localStorage.setItem('vn021',JSON.stringify(S));
+      finishEvent();
+      return;
+    }
+
+    choices('どう返す？',ev.choices.map(ch=>[
+      ch.text,
+      ()=>{
+        applyBodyChoice(ev.char,ch.effects);
+        if(ev.post?.diet_mode)c.diet_mode=true;
+        localStorage.setItem('vn021',JSON.stringify(S));
+        talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent);
+      }
+    ]));
+  };
+
+  let m=evMeta(id);
+  if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);
+  else talk(ev.lines,after);
+}
 
 
 function debugMarkUnread(){
