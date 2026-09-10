@@ -246,37 +246,32 @@ function qEvent(id){if(evCan(id)&&!S.event_queue.includes(id))S.event_queue.push
 function evMark(id){const m=evMeta(id);S.event_repeat_count[id]=(S.event_repeat_count[id]||0)+1;S.event_last_week[id]=S.year_week;if(m?.once&&!S.viewed.includes(id))S.viewed.push(id)}
 function bodyEvent(id){let c=S.chars[id],eid=`${id}_bodychange_${String(c.body_level).padStart(2,'0')}`;if(evMeta(eid))qEvent(eid)}
 function evalPre(){
+  ensurePairGroupState();
   let h=S.chars.hina,r=S.chars.rin,m=S.chars.misaki,y=S.chars.yuina,ch=S.chars.chisa,k=S.chars.kaori,mi=S.chars.mirei;
+  const older=id=>!S.event_last_week[id]||S.event_last_week[id]<S.year_week;
   if(r.body_level>=3&&h.body_level<=2)qEvent('pair_hina_rin_01');
-  if(evSeen('pair_hina_rin_01')&&h.body_level>=3&&r.body_level>=3)qEvent('pair_hina_rin_02');
-  if(evSeen('pair_hina_rin_02')&&h.body_level>=4&&r.body_level>=4)qEvent('pair_hina_rin_03');
+  if(evSeen('pair_hina_rin_01')&&older('pair_hina_rin_01')&&h.body_level>=3&&r.body_level>=3)qEvent('pair_hina_rin_02');
+  if(evSeen('pair_hina_rin_02')&&older('pair_hina_rin_02')&&h.body_level>=4&&r.body_level>=4)qEvent('pair_hina_rin_03');
 
   if(m.body_level>=3&&r.body_level>=3)qEvent('pair_misaki_rin_01');
-  if(evSeen('pair_misaki_rin_01')&&m.body_level>=3&&r.body_level>=3)qEvent('pair_misaki_rin_02');
-  if(evSeen('pair_misaki_rin_02')&&m.body_level>=3&&r.body_level>=3)qEvent('pair_misaki_rin_03');
-  if(evSeen('pair_misaki_rin_03')&&m.body_level>=4&&r.body_level>=4)qEvent('pair_misaki_rin_04');
+  if(evSeen('pair_misaki_rin_01')&&older('pair_misaki_rin_01')&&m.body_level>=3&&r.body_level>=3)qEvent('pair_misaki_rin_02');
+  if(evSeen('pair_misaki_rin_02')&&older('pair_misaki_rin_02')&&m.body_level>=3&&r.body_level>=3)qEvent('pair_misaki_rin_03');
+  if(evSeen('pair_misaki_rin_03')&&older('pair_misaki_rin_03')&&m.body_level>=4&&r.body_level>=4)qEvent('pair_misaki_rin_04');
 
   if(h.food_habit>=40)qEvent('pair_hina_yuina_01');
-  if(evSeen('pair_hina_yuina_01')&&y.body_level>=3)qEvent('pair_hina_yuina_02');
+  if(evSeen('pair_hina_yuina_01')&&older('pair_hina_yuina_01')&&y.body_level>=3)qEvent('pair_hina_yuina_02');
   if(ch.body_level>=3&&h.body_level<=2)qEvent('pair_hina_chisa_01');
-  if(evSeen('pair_hina_chisa_01')&&h.body_level>=3&&ch.body_level>=3)qEvent('pair_hina_chisa_02');
+  if(evSeen('pair_hina_chisa_01')&&older('pair_hina_chisa_01')&&h.body_level>=3&&ch.body_level>=3)qEvent('pair_hina_chisa_02');
   if(y.body_level>=3&&ch.body_level>=3)qEvent('pair_yuina_chisa_01');
   if(r.body_level>=3&&ch.body_level>=3)qEvent('pair_rin_chisa_01');
   if(m.body_level>=2&&h.body_level>=2)qEvent('pair_misaki_hina_01');
 
   if(mi.visible&&r.body_level>=2&&mi.body_level<=2)qEvent('pair_rin_mirei_01');
-  if(mi.visible&&evSeen('pair_rin_mirei_01')&&r.body_level>=3&&mi.body_level>=3)qEvent('pair_rin_mirei_02');
-  if(mi.visible&&r.body_level>=4&&mi.body_level>=4)qEvent('pair_rin_mirei_03');
+  if(mi.visible&&evSeen('pair_rin_mirei_01')&&older('pair_rin_mirei_01')&&r.body_level>=3&&mi.body_level>=3)qEvent('pair_rin_mirei_02');
+  if(mi.visible&&evSeen('pair_rin_mirei_02')&&older('pair_rin_mirei_02')&&r.body_level>=4&&mi.body_level>=4)qEvent('pair_rin_mirei_03');
 
   if(k.body_level>=3&&[m,y,h,ch,r].some(c=>c.body_level>=3))qEvent('pair_kaori_students_01');
-  if(k.body_level>=4)qEvent('pair_kaori_students_02');
-}
-function ensureStateV04(){
-  if(!S.event_repeat_count)S.event_repeat_count={};
-  if(!S.event_last_week)S.event_last_week={};
-  if(!S.flags)S.flags={};
-  if(!S.event_queue)S.event_queue=[];
-  if(!S.daily_last_week)S.daily_last_week={};
+  if(evSeen('pair_kaori_students_01')&&older('pair_kaori_students_01')&&k.body_level>=4)qEvent('pair_kaori_students_02');
 }
 function evalPost(){
   ensureStateV04();
@@ -295,14 +290,16 @@ function evalPost(){
   }
 }
 function evalWeek(){
+  ensurePairGroupState();
   let ss=['misaki','yuina','hina','chisa','rin'].map(id=>S.chars[id]),l2=ss.filter(c=>c.body_level>=2).length,l3=ss.filter(c=>c.body_level>=3).length;
   let yhcLv3=S.chars.yuina.body_level>=3&&S.chars.hina.body_level>=3&&S.chars.chisa.body_level>=3;
   let yhcLv4=S.chars.yuina.body_level>=4&&S.chars.hina.body_level>=4&&S.chars.chisa.body_level>=4;
+  const older=id=>!S.event_last_week[id]||S.event_last_week[id]<S.year_week;
   if(l2>=3)qEvent('group_body_01');
   if(yhcLv3)qEvent('group_body_02');
-  if(evSeen('group_body_02')&&yhcLv3)qEvent('group_body_03');
-  if(S.flags.diet_club)qEvent('group_body_04');
-  if(evSeen('group_body_04')&&yhcLv4)qEvent('group_body_05');
+  if(evSeen('group_body_02')&&older('group_body_02')&&yhcLv3)qEvent('group_body_03');
+  if(evSeen('group_body_03')&&older('group_body_03')&&S.flags.diet_club)qEvent('group_body_04');
+  if(evSeen('group_body_04')&&older('group_body_04')&&yhcLv4)qEvent('group_body_05');
   if(S.year_week>=33&&l3>=3)qEvent('group_body_06');
 }
 function evScript(id){
@@ -347,7 +344,52 @@ function runDailyEvent(id,cb){
   else talk(ev.lines,afterLines);
 }
 
-function playV03(id,cb){let m=evMeta(id);if(!m){if(typeof cb==='function')cb();else if(S)menu();return;}evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id])return runDailyEvent(id,cb);let finishEvent=()=>finishEventSafely(cb),run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
+
+function ensurePairGroupState(){
+  if(!S.flags)S.flags={};
+  if(!S.event_last_week)S.event_last_week={};
+  Object.values(S.chars).forEach(c=>ensureDiet(c));
+}
+function applyOnePGEffect(id,e){
+  const c=S.chars[id]; if(!c)return;
+  ensureDiet(c);
+  const oldLv=c.body_level;
+  c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));
+  c.food_habit=Math.max(0,Math.min(100,c.food_habit+(e.food||0)));
+  c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)));
+  if(e.body){
+    c.body_points=Math.max(0,Math.min(100,c.body_points+e.body));
+    const n=c.body_points>=80?5:c.body_points>=60?4:c.body_points>=40?3:c.body_points>=20?2:1;
+    c.body_level=c.max_body_level=Math.max(c.max_body_level,n);
+    if(c.body_level>oldLv)bodyEvent(id);
+  }
+}
+function applyPGEffects(ev){
+  ensurePairGroupState();
+  if(ev.effects)Object.entries(ev.effects).forEach(([id,e])=>applyOnePGEffect(id,e));
+  if(ev.flags)Object.entries(ev.flags).forEach(([k,v])=>S.flags[k]=v);
+  if(ev.special==='dropout'){
+    const ids=['yuina','hina','chisa'];
+    const loser=ids.sort((a,b)=>S.chars[b].food_habit-S.chars[a].food_habit)[0];
+    applyOnePGEffect(loser,{body:2,food:2,diet_progress:-5});
+    S.flags.diet_club_dropout=loser;
+  }
+}
+function runPairGroupEvent(id,cb){
+  const ev=PAIR_GROUP_EVENT_SCRIPTS_V05[id];
+  if(!ev)return finishEventSafely(cb);
+  ensurePairGroupState();
+  const finishEvent=()=>{localStorage.setItem('vn021',JSON.stringify(S));finishEventSafely(cb)};
+  const afterLines=()=>{
+    applyPGEffects(ev);
+    talk([{s:'',t:ev.result||'イベントが終了した。'}],finishEvent);
+  };
+  const meta=evMeta(id);
+  if(meta?.cg)showCG(id,()=>talk(ev.lines,afterLines),true);
+  else talk(ev.lines,afterLines);
+}
+
+function playV03(id,cb){let m=evMeta(id);if(!m){if(typeof cb==='function')cb();else if(S)menu();return;}evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id])return runDailyEvent(id,cb);if(typeof PAIR_GROUP_EVENT_SCRIPTS_V05!=='undefined'&&PAIR_GROUP_EVENT_SCRIPTS_V05[id])return runPairGroupEvent(id,cb);let finishEvent=()=>finishEventSafely(cb),run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
 function drainV03(cb){if(!S.event_queue.length)return cb();let ids=[...new Set(S.event_queue)];S.event_queue=[];ids.sort((a,b)=>(evMeta(b)?.priority||0)-(evMeta(a)?.priority||0));let go=()=>ids.length?playV03(ids.shift(),go):cb();go()}
 function resumeAfterDebugEvent(){
   hideCG();
@@ -361,7 +403,7 @@ function finishEventSafely(cb){
   else if(S)menu();
 }
 function debugEventOptions(){let d=$('debugEventId');if(!d)return;d.innerHTML='';EVENT_MASTER_V03.forEach(e=>{let o=document.createElement('option');o.value=e.id;o.textContent=`${e.id} | ${e.title}`;d.appendChild(o)})}
-function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id]){if(!evSeen(id))evMark(id);runBodyChange(id,resumeAfterDebugEvent)}else if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id]){if(!evSeen(id))evMark(id);runDailyEvent(id,resumeAfterDebugEvent)}else playV03(id,resumeAfterDebugEvent)}
+function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id]){if(!evSeen(id))evMark(id);runBodyChange(id,resumeAfterDebugEvent)}else if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id]){if(!evSeen(id))evMark(id);runDailyEvent(id,resumeAfterDebugEvent)}else if(typeof PAIR_GROUP_EVENT_SCRIPTS_V05!=='undefined'&&PAIR_GROUP_EVENT_SCRIPTS_V05[id]){if(!evSeen(id))evMark(id);runPairGroupEvent(id,resumeAfterDebugEvent)}else playV03(id,resumeAfterDebugEvent)}
 
 
 function ensureDiet(c){if(typeof c.diet_mode!=="boolean")c.diet_mode=false;if(typeof c.diet_progress!=="number")c.diet_progress=0}
