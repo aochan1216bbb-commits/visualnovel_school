@@ -99,12 +99,12 @@ function showCG(eventId,cb,persistent=false){
     }
   },()=>cb&&cb(false));
 }
-function fresh(){return{year_week:1,part:0,chars:JSON.parse(JSON.stringify(CHARACTERS)),viewed:[],event_repeat_count:{},event_last_week:{},flags:{},event_queue:[]}}
+function fresh(){return{year_week:1,part:0,chars:JSON.parse(JSON.stringify(CHARACTERS)),viewed:[],event_repeat_count:{},event_last_week:{},flags:{},event_queue:[],daily_last_week:{}}}
 function W(){return CALENDAR[S.year_week-1]} function ui(){$("date").textContent=`${W().month}月 第${W().week}週`;$("part").textContent=W().parts[S.part]||"週末"}
 function show(id){$("title").classList.add("hidden");$("game").classList.add("hidden");$(id).classList.remove("hidden")}
 function newGame(){S=fresh();show("game");ui();scheduleSpritePreload();talk([{s:"",t:"高校最後の一年が始まった。",bg:"料理部室"},{s:"神谷 美咲",c:"misaki",e:"normal",t:"「部長、材料そっち運んどいて」"},{s:"主人公",t:"会って一発目から俺にやらせんな。"}],menu)}
 function save(){localStorage.setItem("vn021",JSON.stringify(S));alert("セーブしました")}
-function continueGame(){let x=localStorage.getItem("vn021");if(!x)return alert("セーブなし");S=JSON.parse(x);show("game");ui();scheduleSpritePreload();menu()}
+function continueGame(){let x=localStorage.getItem("vn021");if(!x)return alert("セーブなし");S=JSON.parse(x);ensureStateV04();show("game");ui();scheduleSpritePreload();menu()}
 function talk(lines,cb){Q=[...lines];CB=cb;$("choices").innerHTML="";$("dialog").classList.remove("hidden");next()}
 function next(){if(!Q.length){$("dialog").classList.add("hidden");char(null);let c=CB;CB=null;if(c)c();return}let x=Q.shift();$("speaker").textContent=x.s||"";$("text").textContent=x.t||"";if(x.bg)bg(x.bg);char(x.c,x.e)}
 function choices(title,arr){$("dialog").classList.add("hidden");$("choices").innerHTML=`<div style="grid-column:1/-1">${title}</div>`;arr.forEach(o=>{let b=document.createElement("button");b.textContent=o[0];b.onclick=o[1];$("choices").appendChild(b)})}
@@ -118,7 +118,7 @@ function holiday(){choices("休日をどう過ごす？",[["誰かを誘う",inv
 function invite(){choices("誰を誘う？",["misaki","yuina","hina","chisa","rin"].map(id=>[S.chars[id].name,()=>choices("行き先",["公園","カフェ","ショッピング","映画"].map(d=>[d,()=>talk([{s:S.chars[id].name,c:id,e:"smile",t:`「${d}、いいね」`,bg:d}],()=>{effect(id,3,2,1);finish()})]))]))}
 function solo(){choices("一人でどこへ行く？",["カフェ","本屋","ショッピング","公園"].map(d=>[d,()=>talk([{t:`今日は${d}を一人で回った。`,bg:d}],finish)]))}
 function finish(){S.part++;localStorage.setItem("vn021",JSON.stringify(S));menu()}
-function weekend(){evalWeek();drainV03(()=>{if(S.year_week>=48)return showCG('graduation_ending',()=>talk([{t:'卒業式の日を迎えた。Ver0.3.3終了。',bg:'カレンダー'}],()=>{hideCG();show('title')}),true);S.year_week++;S.part=0;localStorage.setItem('vn021',JSON.stringify(S));talk([{t:`――${W().month}月 第${W().week}週へ進みます。`,bg:'カレンダー'}],menu)})}
+function weekend(){evalWeek();drainV03(()=>{if(S.year_week>=48)return showCG('graduation_ending',()=>talk([{t:'卒業式の日を迎えた。Ver0.4終了。',bg:'カレンダー'}],()=>{hideCG();show('title')}),true);S.year_week++;S.part=0;localStorage.setItem('vn021',JSON.stringify(S));talk([{t:`――${W().month}月 第${W().week}週へ進みます。`,bg:'カレンダー'}],menu)})}
 function status(){let ids=["misaki","yuina","hina","chisa","rin","kaori"].concat(S.chars.mirei.visible?["mirei"]:[]);$("stats").innerHTML=ids.map(id=>{let c=S.chars[id];return `<div class=row><b>${c.name}</b>　好感度${c.affection} / Body${Math.round(c.body_points)} / Lv${c.body_level} / Diet${c.diet_progress||0}</div>`}).join("");$("modal").classList.remove("hidden")}
 function closeStatus(){$("modal").classList.add("hidden")}
 
@@ -153,7 +153,8 @@ Affection: ${c.affection}
 BodyPoints: ${Math.round(c.body_points)}
 BodyLevel: ${c.body_level}
 FoodHabit: ${c.food_habit}
-MireiVisible: ${S.chars.mirei.visible ? "true":"false"}`;
+MireiVisible: ${S.chars.mirei.visible ? "true":"false"}
+ViewedEvents: ${S.viewed.length}`;
 }
 function debugNextPart(){
   S.part++;
@@ -270,7 +271,29 @@ function evalPre(){
   if(k.body_level>=3&&[m,y,h,ch,r].some(c=>c.body_level>=3))qEvent('pair_kaori_students_01');
   if(k.body_level>=4)qEvent('pair_kaori_students_02');
 }
-function evalPost(){for(const m of EVENT_MASTER_V03.filter(e=>e.category==='body_daily')){let c=S.chars[m.char];if(!c||c.body_level<m.min_level||!evCan(m.id))continue;if((m.id.includes('midnight')||m.id.includes('snack'))&&c.food_habit<50)continue;if(Math.random()<.18)qEvent(m.id)}if(Math.random()<.08)qEvent('special_09')}
+function ensureStateV04(){
+  if(!S.event_repeat_count)S.event_repeat_count={};
+  if(!S.event_last_week)S.event_last_week={};
+  if(!S.flags)S.flags={};
+  if(!S.event_queue)S.event_queue=[];
+  if(!S.daily_last_week)S.daily_last_week={};
+}
+function evalPost(){
+  ensureStateV04();
+  let eligible=EVENT_MASTER_V03.filter(e=>e.category==='body_daily').filter(m=>{
+    let c=S.chars[m.char];
+    if(!c||c.body_level<m.min_level||!evCan(m.id))return false;
+    if(S.daily_last_week[m.char]===S.year_week)return false;
+    if((m.id.includes('midnight')||m.id.includes('snack'))&&c.food_habit<50)return false;
+    return true;
+  });
+  if(eligible.length&&Math.random()<.30){
+    const picked=eligible[Math.floor(Math.random()*eligible.length)];
+    qEvent(picked.id);
+  }else if(Math.random()<.08){
+    qEvent('special_09');
+  }
+}
 function evalWeek(){
   let ss=['misaki','yuina','hina','chisa','rin'].map(id=>S.chars[id]),l2=ss.filter(c=>c.body_level>=2).length,l3=ss.filter(c=>c.body_level>=3).length;
   let yhcLv3=S.chars.yuina.body_level>=3&&S.chars.hina.body_level>=3&&S.chars.chisa.body_level>=3;
@@ -296,12 +319,76 @@ function evScript(id){
   if(m?.category==='body_daily')return[{s:c.name,c:m.char,e:'embarrassed',t:`${m.title}。体型の変化を意識する出来事が起きた。`}];
   return[{t:`イベント「${m?.title||id}」が発生した。`}]
 }
-function playV03(id,cb){let m=evMeta(id);if(!m)return cb&&cb();evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);let finishEvent=()=>{hideCG();cb&&cb()},run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
+
+function applyDailyEffects(id,e){
+  let c=S.chars[id];ensureDiet(c);
+  let oldLv=c.body_level;
+  c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));
+  c.food_habit=Math.max(0,Math.min(100,c.food_habit+(e.food||0)));
+  c.body_points=Math.max(0,Math.min(100,c.body_points+(e.body||0)));
+  c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)));
+  const n=c.body_points>=80?5:c.body_points>=60?4:c.body_points>=40?3:c.body_points>=20?2:1;
+  if(n>c.max_body_level)c.max_body_level=n;
+  c.body_level=Math.max(c.body_level,n);
+  if(c.body_level>oldLv){preloadSpriteSet(id,c.body_level);bodyEvent(id)}
+}
+function runDailyEvent(id,cb){
+  let ev=DAILY_EVENT_SCRIPTS_V04[id];
+  if(!ev)return cb&&cb();
+  ensureStateV04();
+  S.daily_last_week[ev.char]=S.year_week;
+  let finishEvent=()=>{hideCG();localStorage.setItem('vn021',JSON.stringify(S));cb&&cb()};
+  let afterLines=()=>{
+    applyDailyEffects(ev.char,ev.effects||{});
+    talk([{s:'',t:ev.result||'日常イベントが終了した。'}],finishEvent);
+  };
+  let m=evMeta(id);
+  if(m?.cg)showCG(id,()=>talk(ev.lines,afterLines),true);
+  else talk(ev.lines,afterLines);
+}
+
+function playV03(id,cb){let m=evMeta(id);if(!m)return cb&&cb();evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id])return runDailyEvent(id,cb);let finishEvent=()=>{hideCG();cb&&cb()},run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
 function drainV03(cb){if(!S.event_queue.length)return cb();let ids=[...new Set(S.event_queue)];S.event_queue=[];ids.sort((a,b)=>(evMeta(b)?.priority||0)-(evMeta(a)?.priority||0));let go=()=>ids.length?playV03(ids.shift(),go):cb();go()}
 function debugEventOptions(){let d=$('debugEventId');if(!d)return;d.innerHTML='';EVENT_MASTER_V03.forEach(e=>{let o=document.createElement('option');o.value=e.id;o.textContent=`${e.id} | ${e.title}`;d.appendChild(o)})}
-function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])runBodyChange(id,()=>{});else playV03(id,()=>{})}
+function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])runBodyChange(id,()=>{});else if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id]){evMark(id);runDailyEvent(id,()=>{})}else playV03(id,()=>{})}
 
 
 function ensureDiet(c){if(typeof c.diet_mode!=="boolean")c.diet_mode=false;if(typeof c.diet_progress!=="number")c.diet_progress=0}
 function applyBodyChoice(id,e){let c=S.chars[id];ensureDiet(c);c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)))}
 function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let finishEvent=()=>{hideCG();cb&&cb()};let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent)}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);else talk(ev.lines,after)}
+
+
+function debugMarkUnread(){
+  const id=$('debugEventId').value;
+  if(!id)return;
+  S.viewed=S.viewed.filter(x=>x!==id);
+  delete S.event_repeat_count[id];
+  delete S.event_last_week[id];
+  const m=evMeta(id);
+  if(m?.category==='body_daily'&&m.char&&S.daily_last_week)delete S.daily_last_week[m.char];
+  localStorage.setItem('vn021',JSON.stringify(S));
+  alert(`${id} を未読状態に戻しました`);
+  refreshDebugInfo();
+}
+function debugResetViewed(){
+  if(!confirm('全イベントの既読・反復履歴をリセットしますか？'))return;
+  S.viewed=[];S.event_repeat_count={};S.event_last_week={};S.event_queue=[];S.daily_last_week={};
+  localStorage.setItem('vn021',JSON.stringify(S));
+  alert('イベント既読履歴をリセットしました');
+  refreshDebugInfo();
+}
+function debugCheckSelectedCG(){
+  const id=$('debugEventId').value,m=evMeta(id);
+  if(!id)return;
+  if(!m?.cg){alert(`${id}\nEventMaster上はCGなしです`);return;}
+  const src=`assets/cg/${id}.webp`;
+  exists(src,()=>alert(`${id}\nCGファイルあり`),()=>alert(`${id}\nCG指定あり / ファイル未検出`));
+}
+async function debugCheckAllCG(){
+  const list=EVENT_MASTER_V03.filter(e=>e.cg);
+  let present=[],missing=[];
+  await Promise.all(list.map(e=>new Promise(resolve=>{
+    exists(`assets/cg/${e.id}.webp`,()=>{present.push(e.id);resolve()},()=>{missing.push(e.id);resolve()});
+  })));
+  alert(`CGチェック完了\nあり: ${present.length}\n未検出: ${missing.length}\n\n未検出:\n${missing.slice(0,30).join('\n')}${missing.length>30?'\n...':''}`);
+}
