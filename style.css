@@ -9,3 +9,6 @@
 .debug-section .wide{width:100%;margin:4px 0}
 #debugInfo{white-space:pre-wrap;background:#020617;border:1px solid #334155;border-radius:10px;padding:10px;font-size:12px;color:#cbd5e1}
 @media(max-width:600px){.debug-grid.five{grid-template-columns:repeat(3,1fr)}}
+
+/* Ver0.4.1: keep interactive UI above the stage/CG layer */
+#choices,#dialog{position:relative;z-index:15}

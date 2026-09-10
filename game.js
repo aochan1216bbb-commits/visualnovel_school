@@ -337,7 +337,7 @@ function runDailyEvent(id,cb){
   if(!ev)return cb&&cb();
   ensureStateV04();
   S.daily_last_week[ev.char]=S.year_week;
-  let finishEvent=()=>{hideCG();localStorage.setItem('vn021',JSON.stringify(S));cb&&cb()};
+  let finishEvent=()=>{localStorage.setItem('vn021',JSON.stringify(S));finishEventSafely(cb)};
   let afterLines=()=>{
     applyDailyEffects(ev.char,ev.effects||{});
     talk([{s:'',t:ev.result||'日常イベントが終了した。'}],finishEvent);
@@ -347,15 +347,26 @@ function runDailyEvent(id,cb){
   else talk(ev.lines,afterLines);
 }
 
-function playV03(id,cb){let m=evMeta(id);if(!m)return cb&&cb();evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id])return runDailyEvent(id,cb);let finishEvent=()=>{hideCG();cb&&cb()},run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
+function playV03(id,cb){let m=evMeta(id);if(!m){if(typeof cb==='function')cb();else if(S)menu();return;}evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id])return runDailyEvent(id,cb);let finishEvent=()=>finishEventSafely(cb),run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
 function drainV03(cb){if(!S.event_queue.length)return cb();let ids=[...new Set(S.event_queue)];S.event_queue=[];ids.sort((a,b)=>(evMeta(b)?.priority||0)-(evMeta(a)?.priority||0));let go=()=>ids.length?playV03(ids.shift(),go):cb();go()}
+function resumeAfterDebugEvent(){
+  hideCG();
+  if(!S)return;
+  // DEBUGからイベントを直接再生した場合も、現在のパートの選択画面へ必ず戻す。
+  menu();
+}
+function finishEventSafely(cb){
+  hideCG();
+  if(typeof cb==='function')cb();
+  else if(S)menu();
+}
 function debugEventOptions(){let d=$('debugEventId');if(!d)return;d.innerHTML='';EVENT_MASTER_V03.forEach(e=>{let o=document.createElement('option');o.value=e.id;o.textContent=`${e.id} | ${e.title}`;d.appendChild(o)})}
-function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])runBodyChange(id,()=>{});else if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id]){evMark(id);runDailyEvent(id,()=>{})}else playV03(id,()=>{})}
+function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id]){if(!evSeen(id))evMark(id);runBodyChange(id,resumeAfterDebugEvent)}else if(typeof DAILY_EVENT_SCRIPTS_V04!=='undefined'&&DAILY_EVENT_SCRIPTS_V04[id]){if(!evSeen(id))evMark(id);runDailyEvent(id,resumeAfterDebugEvent)}else playV03(id,resumeAfterDebugEvent)}
 
 
 function ensureDiet(c){if(typeof c.diet_mode!=="boolean")c.diet_mode=false;if(typeof c.diet_progress!=="number")c.diet_progress=0}
 function applyBodyChoice(id,e){let c=S.chars[id];ensureDiet(c);c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)))}
-function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let finishEvent=()=>{hideCG();cb&&cb()};let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent)}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);else talk(ev.lines,after)}
+function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let finishEvent=()=>finishEventSafely(cb);let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent)}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);else talk(ev.lines,after)}
 
 
 function debugMarkUnread(){
