@@ -1,20 +1,114 @@
 
 let S=null,Q=[],CB=null; const $=x=>document.getElementById(x);
 const BG_MAP={"料理部室":"cooking_room.webp","教室":"classroom.webp","図書室":"library.webp","食堂":"cafeteria.webp","料理部":"cooking_room.webp","公園":"park.webp","カフェ":"cafe.webp","本屋":"bookstore.webp","ショッピング":"mall.webp","映画":"movie.webp","自宅":"home.webp","カレンダー":"calendar.webp"};
-function exists(src,yes,no){let i=new Image();i.onload=()=>yes(src);i.onerror=()=>no&&no();i.src=src}
-function bg(label){$("bg").textContent=label;let f=BG_MAP[label],im=$("bgimg");im.classList.add("hidden");if(!f)return;exists(`assets/backgrounds/${f}`,s=>{im.src=s;im.classList.remove("hidden")},()=>{})}
-function char(id,exp="normal"){let sp=$("sprite"),ph=$("placeholder");sp.classList.add("hidden");ph.classList.add("hidden");if(!id)return;let c=S.chars[id],a=`assets/characters/${id}/lv${c.body_level}/${exp}.webp`,n=`assets/characters/${id}/lv${c.body_level}/normal.webp`;exists(a,s=>{sp.src=s;sp.classList.remove("hidden")},()=>{if(exp!=="normal")exists(n,s=>{sp.src=s;sp.classList.remove("hidden")},()=>fallback());else fallback();function fallback(){ph.classList.remove("hidden");$("avatar").textContent=c.short;$("cname").textContent=c.name;$("cstate").textContent=`Lv${c.body_level} / ${exp}`}})}
-function showCG(eventId,cb){let im=$("cgimg"),src=`assets/cg/${eventId}.webp`;im.classList.add("hidden");exists(src,s=>{im.src=s;im.classList.remove("hidden");im.onclick=()=>{im.classList.add("hidden");im.onclick=null;cb&&cb()}},()=>cb&&cb())}
+
+// Image cache: once a file is checked, later sprite/expression changes reuse the browser cache
+// instead of creating a fresh image probe every time.
+const IMAGE_CACHE=new Map();
+let spriteRequestToken=0,displayedSpriteChar=null;
+const EXPRESSIONS=["normal","smile","angry","embarrassed","surprised"];
+
+function exists(src,yes,no){
+  const cached=IMAGE_CACHE.get(src);
+  if(cached?.state==="ok"){yes&&yes(src);return}
+  if(cached?.state==="ng"){no&&no();return}
+  if(cached?.state==="loading"){
+    cached.waiters.push([yes,no]);return;
+  }
+  const entry={state:"loading",waiters:[[yes,no]]};
+  IMAGE_CACHE.set(src,entry);
+  const i=new Image();
+  i.decoding="async";
+  i.onload=()=>{
+    entry.state="ok";
+    const waiters=entry.waiters.splice(0);
+    waiters.forEach(([y])=>y&&y(src));
+  };
+  i.onerror=()=>{
+    entry.state="ng";
+    const waiters=entry.waiters.splice(0);
+    waiters.forEach(([,n])=>n&&n());
+  };
+  i.src=src;
+}
+function isCached(src){return IMAGE_CACHE.get(src)?.state==="ok"}
+function spriteSrc(id,lv,exp){return `assets/characters/${id}/lv${lv}/${exp}.webp`}
+function preloadSpriteSet(id,lv){
+  if(!S?.chars?.[id])return;
+  EXPRESSIONS.forEach(exp=>exists(spriteSrc(id,lv,exp),()=>{},()=>{}));
+}
+function preloadVisibleSprites(){
+  if(!S)return;
+  ["misaki","yuina","hina","chisa","rin","kaori"].forEach(id=>preloadSpriteSet(id,S.chars[id].body_level));
+  if(S.chars.mirei?.visible)preloadSpriteSet("mirei",S.chars.mirei.body_level);
+}
+function scheduleSpritePreload(){
+  const run=()=>preloadVisibleSprites();
+  if("requestIdleCallback" in window)requestIdleCallback(run,{timeout:1200});
+  else setTimeout(run,80);
+}
+
+function bg(label){
+  $("bg").textContent=label;
+  let f=BG_MAP[label],im=$("bgimg");
+  if(!f){im.classList.add("hidden");return}
+  const src=`assets/backgrounds/${f}`;
+  if(isCached(src)){im.src=src;im.classList.remove("hidden");return}
+  exists(src,s=>{im.src=s;im.classList.remove("hidden")},()=>im.classList.add("hidden"));
+}
+function char(id,exp="normal"){
+  let sp=$("sprite"),ph=$("placeholder");
+  ph.classList.add("hidden");
+  const token=++spriteRequestToken;
+  if(!id){sp.classList.add("hidden");displayedSpriteChar=null;return}
+  let c=S.chars[id],a=spriteSrc(id,c.body_level,exp),n=spriteSrc(id,c.body_level,"normal");
+  const render=s=>{if(token!==spriteRequestToken)return;sp.src=s;sp.classList.remove("hidden");ph.classList.add("hidden");displayedSpriteChar=id};
+  const fallback=()=>{if(token!==spriteRequestToken)return;sp.classList.add("hidden");ph.classList.remove("hidden");$("avatar").textContent=c.short;$("cname").textContent=c.name;$("cstate").textContent=`Lv${c.body_level} / ${exp}`;displayedSpriteChar=id};
+
+  // Instant path for already-preloaded expressions.
+  if(isCached(a)){render(a);return}
+  // While a new expression is loading, keep the same character's previous sprite on-screen.
+  if(displayedSpriteChar!==id)sp.classList.add("hidden");
+  // If normal is already cached, show it immediately and replace it when the requested expression arrives.
+  if(exp!=="normal"&&isCached(n))render(n);
+  exists(a,render,()=>{
+    if(exp!=="normal")exists(n,render,fallback);else fallback();
+  });
+}
+
+function hideCG(){
+  const im=$("cgimg");
+  im.classList.add("hidden");
+  im.onclick=null;
+  im.removeAttribute("data-persistent");
+}
+// persistent=true: show the CG and immediately start the event; the caller hides it when the event ends.
+// persistent=false: debug/preview mode; tap the CG itself to close it.
+function showCG(eventId,cb,persistent=false){
+  let im=$("cgimg"),src=`assets/cg/${eventId}.webp`;
+  hideCG();
+  exists(src,s=>{
+    im.src=s;
+    im.classList.remove("hidden");
+    if(persistent){
+      im.dataset.persistent="1";
+      im.onclick=null;
+      cb&&cb(true);
+    }else{
+      im.onclick=()=>{hideCG();cb&&cb(true)};
+    }
+  },()=>cb&&cb(false));
+}
 function fresh(){return{year_week:1,part:0,chars:JSON.parse(JSON.stringify(CHARACTERS)),viewed:[],event_repeat_count:{},event_last_week:{},flags:{},event_queue:[]}}
 function W(){return CALENDAR[S.year_week-1]} function ui(){$("date").textContent=`${W().month}月 第${W().week}週`;$("part").textContent=W().parts[S.part]||"週末"}
 function show(id){$("title").classList.add("hidden");$("game").classList.add("hidden");$(id).classList.remove("hidden")}
-function newGame(){S=fresh();show("game");ui();talk([{s:"",t:"高校最後の一年が始まった。",bg:"料理部室"},{s:"神谷 美咲",c:"misaki",e:"normal",t:"「部長、材料そっち運んどいて」"},{s:"主人公",t:"会って一発目から俺にやらせんな。"}],menu)}
+function newGame(){S=fresh();show("game");ui();scheduleSpritePreload();talk([{s:"",t:"高校最後の一年が始まった。",bg:"料理部室"},{s:"神谷 美咲",c:"misaki",e:"normal",t:"「部長、材料そっち運んどいて」"},{s:"主人公",t:"会って一発目から俺にやらせんな。"}],menu)}
 function save(){localStorage.setItem("vn021",JSON.stringify(S));alert("セーブしました")}
-function continueGame(){let x=localStorage.getItem("vn021");if(!x)return alert("セーブなし");S=JSON.parse(x);show("game");ui();menu()}
+function continueGame(){let x=localStorage.getItem("vn021");if(!x)return alert("セーブなし");S=JSON.parse(x);show("game");ui();scheduleSpritePreload();menu()}
 function talk(lines,cb){Q=[...lines];CB=cb;$("choices").innerHTML="";$("dialog").classList.remove("hidden");next()}
 function next(){if(!Q.length){$("dialog").classList.add("hidden");char(null);let c=CB;CB=null;if(c)c();return}let x=Q.shift();$("speaker").textContent=x.s||"";$("text").textContent=x.t||"";if(x.bg)bg(x.bg);char(x.c,x.e)}
 function choices(title,arr){$("dialog").classList.add("hidden");$("choices").innerHTML=`<div style="grid-column:1/-1">${title}</div>`;arr.forEach(o=>{let b=document.createElement("button");b.textContent=o[0];b.onclick=o[1];$("choices").appendChild(b)})}
-function effect(id,a=0,b=0,f=0){let c=S.chars[id];c.affection=Math.min(100,c.affection+a);c.body_points=Math.min(100,c.body_points+b);c.food_habit=Math.min(100,c.food_habit+f);{const n=c.body_points>=80?5:c.body_points>=60?4:c.body_points>=40?3:c.body_points>=20?2:1,old=c.body_level;c.body_level=c.max_body_level=Math.max(c.max_body_level,n);if(c.body_level>old)bodyEvent(id)}}
+function effect(id,a=0,b=0,f=0){let c=S.chars[id];c.affection=Math.min(100,c.affection+a);c.body_points=Math.min(100,c.body_points+b);c.food_habit=Math.min(100,c.food_habit+f);{const n=c.body_points>=80?5:c.body_points>=60?4:c.body_points>=40?3:c.body_points>=20?2:1,old=c.body_level;c.body_level=c.max_body_level=Math.max(c.max_body_level,n);if(c.body_level>old){preloadSpriteSet(id,c.body_level);bodyEvent(id)}}}
 const locs={"教室":["misaki","yuina","rin"],"図書室":["yuina","chisa"],"食堂":["misaki","hina","rin"],"料理部":["misaki","yuina","hina","chisa","rin","kaori"]};
 function menu(){ui();if(S.part>=W().parts.length)return weekend();evalPre();drainV03(()=>{W().parts[S.part].startsWith('平日')?weekday():holiday()})}
 function weekday(){choices("どこへ行く？",Object.keys(locs).map(l=>[l,()=>visit(l)]))}
@@ -24,7 +118,7 @@ function holiday(){choices("休日をどう過ごす？",[["誰かを誘う",inv
 function invite(){choices("誰を誘う？",["misaki","yuina","hina","chisa","rin"].map(id=>[S.chars[id].name,()=>choices("行き先",["公園","カフェ","ショッピング","映画"].map(d=>[d,()=>talk([{s:S.chars[id].name,c:id,e:"smile",t:`「${d}、いいね」`,bg:d}],()=>{effect(id,3,2,1);finish()})]))]))}
 function solo(){choices("一人でどこへ行く？",["カフェ","本屋","ショッピング","公園"].map(d=>[d,()=>talk([{t:`今日は${d}を一人で回った。`,bg:d}],finish)]))}
 function finish(){S.part++;localStorage.setItem("vn021",JSON.stringify(S));menu()}
-function weekend(){evalWeek();drainV03(()=>{if(S.year_week>=48)return showCG('graduation_ending',()=>talk([{t:'卒業式の日を迎えた。Ver0.3終了。',bg:'カレンダー'}],()=>show('title')));S.year_week++;S.part=0;localStorage.setItem('vn021',JSON.stringify(S));talk([{t:`――${W().month}月 第${W().week}週へ進みます。`,bg:'カレンダー'}],menu)})}
+function weekend(){evalWeek();drainV03(()=>{if(S.year_week>=48)return showCG('graduation_ending',()=>talk([{t:'卒業式の日を迎えた。Ver0.3.3終了。',bg:'カレンダー'}],()=>{hideCG();show('title')}),true);S.year_week++;S.part=0;localStorage.setItem('vn021',JSON.stringify(S));talk([{t:`――${W().month}月 第${W().week}週へ進みます。`,bg:'カレンダー'}],menu)})}
 function status(){let ids=["misaki","yuina","hina","chisa","rin","kaori"].concat(S.chars.mirei.visible?["mirei"]:[]);$("stats").innerHTML=ids.map(id=>{let c=S.chars[id];return `<div class=row><b>${c.name}</b>　好感度${c.affection} / Body${Math.round(c.body_points)} / Lv${c.body_level} / Diet${c.diet_progress||0}</div>`}).join("");$("modal").classList.remove("hidden")}
 function closeStatus(){$("modal").classList.add("hidden")}
 
@@ -110,10 +204,12 @@ function debugSetLevel(lv){
   c.body_points=pts;
   c.body_level=lv;
   c.max_body_level=Math.max(c.max_body_level,lv);
+  preloadSpriteSet(debugSelected(),lv);
   refreshDebugInfo();
 }
 function debugUnlockMirei(){
   S.chars.mirei.visible=true;
+  preloadSpriteSet("mirei",S.chars.mirei.body_level);
   alert("美玲を解放しました");
   refreshDebugInfo();
 }
@@ -200,7 +296,7 @@ function evScript(id){
   if(m?.category==='body_daily')return[{s:c.name,c:m.char,e:'embarrassed',t:`${m.title}。体型の変化を意識する出来事が起きた。`}];
   return[{t:`イベント「${m?.title||id}」が発生した。`}]
 }
-function playV03(id,cb){let m=evMeta(id);if(!m)return cb&&cb();evMark(id);if(id==='special_07')S.chars.mirei.visible=true;if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);let run=()=>talk(evScript(id),cb);if(m.cg)showCG(id,run);else run()}
+function playV03(id,cb){let m=evMeta(id);if(!m)return cb&&cb();evMark(id);if(id==='special_07'){S.chars.mirei.visible=true;preloadSpriteSet('mirei',S.chars.mirei.body_level)}if(id==='group_body_02')S.flags.diet_club=true;if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])return runBodyChange(id,cb);let finishEvent=()=>{hideCG();cb&&cb()},run=()=>talk(evScript(id),finishEvent);if(m.cg)showCG(id,run,true);else run()}
 function drainV03(cb){if(!S.event_queue.length)return cb();let ids=[...new Set(S.event_queue)];S.event_queue=[];ids.sort((a,b)=>(evMeta(b)?.priority||0)-(evMeta(a)?.priority||0));let go=()=>ids.length?playV03(ids.shift(),go):cb();go()}
 function debugEventOptions(){let d=$('debugEventId');if(!d)return;d.innerHTML='';EVENT_MASTER_V03.forEach(e=>{let o=document.createElement('option');o.value=e.id;o.textContent=`${e.id} | ${e.title}`;d.appendChild(o)})}
 function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof BODYCHANGE_SCRIPTS_V031!=='undefined'&&BODYCHANGE_SCRIPTS_V031[id])runBodyChange(id,()=>{});else playV03(id,()=>{})}
@@ -208,4 +304,4 @@ function debugFireEvent(){let id=$('debugEventId').value;closeDebug();if(typeof 
 
 function ensureDiet(c){if(typeof c.diet_mode!=="boolean")c.diet_mode=false;if(typeof c.diet_progress!=="number")c.diet_progress=0}
 function applyBodyChoice(id,e){let c=S.chars[id];ensureDiet(c);c.affection=Math.max(0,Math.min(100,c.affection+(e.affection||0)));c.diet_progress=Math.max(0,Math.min(100,c.diet_progress+(e.diet_progress||0)))}
-function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],()=>cb&&cb())}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after));else talk(ev.lines,after)}
+function runBodyChange(id,cb){let ev=BODYCHANGE_SCRIPTS_V031[id];if(!ev)return cb&&cb();let c=S.chars[ev.char];ensureDiet(c);let finishEvent=()=>{hideCG();cb&&cb()};let after=()=>choices('どう返す？',ev.choices.map(ch=>[ch.text,()=>{applyBodyChoice(ev.char,ch.effects);if(ev.post?.diet_mode)c.diet_mode=true;localStorage.setItem('vn021',JSON.stringify(S));talk([{s:'',t:`${c.name}：好感度 ${c.affection} / Diet ${c.diet_progress}${c.diet_mode?' / ダイエット中':''}`}],finishEvent)}]));let m=evMeta(id);if(m?.cg)showCG(id,()=>talk(ev.lines,after),true);else talk(ev.lines,after)}
